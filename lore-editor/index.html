@@ -351,7 +351,12 @@ async function loadFiles() {
     panels.forEach((p, i) => { if (p.file && files.has(p.file)) renderPanel(i); });
   } catch(e) {
     setStatus('Ошибка: ' + e.message, false);
-    document.getElementById('no-files').innerHTML = `<div style="padding:14px;color:var(--red);font-size:12px">Ошибка загрузки:<br>${e.message}</div>`;
+    const authErr = /^(401|403|404)/.test(e.message);
+    const hint = authErr
+      ? `<br><br>${getToken() ? 'Токен недействителен или истёк.' : 'Репозиторий приватный — нужен токен.'}<br>Нажмите 🔑 и введите новый токен, затем ↺.`
+      : '';
+    document.getElementById('no-files').innerHTML = `<div style="padding:14px;color:var(--red);font-size:12px">Ошибка загрузки:<br>${e.message}${hint}</div>`;
+    if (authErr) openTokenModal();
   }
 }
 
@@ -754,17 +759,18 @@ function buildGraph() {
 }
 
 // ── TOKEN ────────────────────────────────────────────────────
-document.getElementById('btn-token').onclick = () => {
+function openTokenModal() {
   const t=getToken();
   document.getElementById('token-input').value='';
   document.getElementById('token-status-box').innerHTML = t
     ? `<div class="token-status has">✓ Токен сохранён — сохранение включено</div>`
     : `<div class="token-status none">Токен не задан — только чтение</div>`;
   openM('token');
-};
+}
+document.getElementById('btn-token').onclick = openTokenModal;
 document.getElementById('btn-save-token').onclick = () => {
   const val=document.getElementById('token-input').value.trim();
-  if (val) { setToken(val); closeM('token'); updateAuthDot(); setStatus('Токен сохранён',true); }
+  if (val) { setToken(val); closeM('token'); updateAuthDot(); setStatus('Токен сохранён',true); loadFiles(); }
 };
 document.getElementById('btn-clear-token').onclick = () => {
   setToken(''); closeM('token'); updateAuthDot(); setStatus('Токен удалён',false);
