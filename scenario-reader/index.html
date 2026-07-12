@@ -135,9 +135,9 @@ body {
 }
 
 /* interactive choice point */
-#reader .choice { margin:2.2em auto; text-align:center; max-width:100%; min-height:calc(100dvh - 54px - env(safe-area-inset-top)); display:flex; flex-direction:column; justify-content:center; }
-#reader .choice-img { width:100%; height:auto; display:block; margin:0 auto 1.3em; border:1px solid var(--border); border-radius:14px; background:var(--surface2); box-shadow:0 8px 30px rgba(0,0,0,.4); transition:opacity .2s; }
-#reader .choice-btns { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+#reader .choice { position:relative; margin:2.2em auto; text-align:center; max-width:100%; min-height:calc(100dvh - 54px - env(safe-area-inset-top)); display:flex; flex-direction:column; justify-content:center; align-items:center; }
+#reader .choice-img { max-width:100%; max-height:calc((100dvh - 54px - env(safe-area-inset-top)) * 0.72); height:auto; display:block; margin:0 auto; border:1px solid var(--border); border-radius:14px; background:var(--surface2); box-shadow:0 8px 30px rgba(0,0,0,.4); transition:opacity .2s; }
+#reader .choice-btns { position:absolute; left:0; right:0; bottom:6%; display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
 #reader .choice-btn {
   font-family:system-ui,-apple-system,sans-serif; font-weight:700; letter-spacing:1px; text-transform:uppercase; font-size:14px;
   color:var(--accent); background:var(--surface); border:1px solid var(--accent2); border-radius:9px;
@@ -557,9 +557,9 @@ function injectInteractions(partId) {
   });
 }
 
-// A startle "stinger" synthesized with Web Audio (no audio file needed):
-// an instant sharp snap + deep punch + a dissonant tritone stab + low dread —
-// meant to make you flinch as the eyes snap open. Short and sudden.
+// A startle "stinger" synthesized with Web Audio (no audio file needed).
+// The scare + audibility live in a bright DISSONANT screech (700–1300 Hz) so it
+// cuts through even small laptop speakers; a deep punch adds body underneath.
 let audioCtx = null;
 function playDrum() {
   try {
@@ -569,57 +569,50 @@ function playDrum() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const t = audioCtx.currentTime;
     const master = audioCtx.createGain();
-    master.gain.value = 2.4; // push hard into the limiter for a loud, aggressive hit
+    master.gain.value = 1.9;
     const limiter = audioCtx.createDynamicsCompressor();
-    limiter.threshold.value = -1.5; limiter.knee.value = 0; limiter.ratio.value = 20;
-    limiter.attack.value = 0.001; limiter.release.value = 0.2;
+    limiter.threshold.value = -2; limiter.knee.value = 0; limiter.ratio.value = 12;
+    limiter.attack.value = 0.002; limiter.release.value = 0.2;
     master.connect(limiter); limiter.connect(audioCtx.destination);
 
-    const noiseBuf = (dur, shape) => {
-      const buf = audioCtx.createBuffer(1, Math.max(1, Math.floor(audioCtx.sampleRate * dur)), audioCtx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, shape);
-      return buf;
-    };
-
-    // 1) sharp bright snap — instant attack, the flinch trigger
-    const snap = audioCtx.createBufferSource(); snap.buffer = noiseBuf(0.13, 2);
-    const shp = audioCtx.createBiquadFilter(); shp.type = 'highpass'; shp.frequency.value = 1300; shp.Q.value = 0.7;
-    const sng = audioCtx.createGain();
-    sng.gain.setValueAtTime(1.1, t); sng.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
-    snap.connect(shp).connect(sng).connect(master); snap.start(t); snap.stop(t + 0.14);
-
-    // 2) deep punch — the gut hit
+    // 1) deep punch — body/impact (felt on real speakers)
     const boom = audioCtx.createOscillator(); boom.type = 'sine';
-    boom.frequency.setValueAtTime(150, t); boom.frequency.exponentialRampToValueAtTime(44, t + 0.13);
+    boom.frequency.setValueAtTime(160, t); boom.frequency.exponentialRampToValueAtTime(46, t + 0.16);
     const bg = audioCtx.createGain();
-    bg.gain.setValueAtTime(0.0001, t); bg.gain.exponentialRampToValueAtTime(1.0, t + 0.006); bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    bg.gain.setValueAtTime(0.0001, t); bg.gain.exponentialRampToValueAtTime(1.0, t + 0.008); bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
     boom.connect(bg).connect(master); boom.start(t); boom.stop(t + 0.65);
 
-    // 3) low body thud under the snap
-    const thud = audioCtx.createBufferSource(); thud.buffer = noiseBuf(0.16, 1);
-    const tf = audioCtx.createBiquadFilter(); tf.type = 'lowpass'; tf.frequency.value = 300;
-    const tg = audioCtx.createGain(); tg.gain.setValueAtTime(0.7, t); tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
-    thud.connect(tf).connect(tg).connect(master); thud.start(t); thud.stop(t + 0.17);
+    // 2) sharp bright click — the attack edge (audible tick)
+    const nlen = Math.floor(audioCtx.sampleRate * 0.11);
+    const nbuf = audioCtx.createBuffer(1, nlen, audioCtx.sampleRate); const nd = nbuf.getChannelData(0);
+    for (let i = 0; i < nlen; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nlen, 2);
+    const click = audioCtx.createBufferSource(); click.buffer = nbuf;
+    const chp = audioCtx.createBiquadFilter(); chp.type = 'highpass'; chp.frequency.value = 1100;
+    const cg = audioCtx.createGain(); cg.gain.setValueAtTime(0.9, t); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+    click.connect(chp).connect(cg).connect(master); click.start(t);
 
-    // 4) dissonant stab — the fear (tritone, harsh saws, menacing downward glide)
-    const stab = audioCtx.createGain();
-    stab.gain.setValueAtTime(0.0001, t); stab.gain.exponentialRampToValueAtTime(0.8, t + 0.007); stab.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-    const sbp = audioCtx.createBiquadFilter(); sbp.type = 'bandpass'; sbp.frequency.value = 750; sbp.Q.value = 1.2;
-    stab.connect(sbp).connect(master);
-    [311, 440].forEach(f => { // Eb + A = tritone
+    // 3) dissonant screech — the scare, and the part you actually hear everywhere.
+    //    A clashing cluster (tritone + beating) with a menacing downward slide.
+    const scr = audioCtx.createGain();
+    scr.gain.setValueAtTime(0.0001, t);
+    scr.gain.exponentialRampToValueAtTime(0.7, t + 0.006); // sharp stab in
+    scr.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    const sf = audioCtx.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = 1250; sf.Q.value = 0.8;
+    scr.connect(sf).connect(master);
+    [[740, 0.6], [1050, 0.65], [1085, 0.6]].forEach(([f, gain]) => {
       const o = audioCtx.createOscillator(); o.type = 'sawtooth';
-      o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.92, t + 0.5);
-      const g = audioCtx.createGain(); g.gain.value = 0.6;
-      o.connect(g).connect(stab); o.start(t); o.stop(t + 0.56);
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.linearRampToValueAtTime(f * 0.93, t + 0.55); // downward = menacing (not a rising laser)
+      const g = audioCtx.createGain(); g.gain.value = gain;
+      o.connect(g).connect(scr); o.start(t); o.stop(t + 0.62);
     });
 
-    // 5) low dread tail — lingering unease
+    // 4) low dread tail — lingering unease
     const dread = audioCtx.createOscillator(); dread.type = 'sawtooth'; dread.frequency.setValueAtTime(55, t);
-    const df = audioCtx.createBiquadFilter(); df.type = 'lowpass'; df.frequency.value = 180;
+    const df = audioCtx.createBiquadFilter(); df.type = 'lowpass'; df.frequency.value = 175;
     const dg = audioCtx.createGain();
-    dg.gain.setValueAtTime(0.0001, t); dg.gain.exponentialRampToValueAtTime(0.22, t + 0.02); dg.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
-    dread.connect(df).connect(dg).connect(master); dread.start(t); dread.stop(t + 0.95);
+    dg.gain.setValueAtTime(0.0001, t); dg.gain.exponentialRampToValueAtTime(0.2, t + 0.02); dg.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
+    dread.connect(df).connect(dg).connect(master); dread.start(t); dread.stop(t + 0.9);
   } catch (e) { /* audio not available — silent */ }
 }
 
