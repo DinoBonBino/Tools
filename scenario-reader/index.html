@@ -265,13 +265,14 @@ const MANIFEST = [
 ];
 const TOKEN_KEY = 'toc_gh_token'; // shared with lore-editor on the same origin
 
-// Images attached to specific scenario lines. Files live in this public folder
-// (img/…); the private scenario text is left untouched. If an image is missing,
-// its figure is silently removed. `side:true` floats it beside the text on wide
-// screens; otherwise it's a centered block.
+// Images attached to a scenario anchor. Files live in this public folder (img/…);
+// the private scenario text is left untouched. If an image is missing, its figure
+// is silently removed. Anchor either by `heading` (exact h2/h3 title) or by
+// `contains` (substring of a paragraph). `side:true` floats it beside the text on
+// wide screens; otherwise it's a centered block.
 const ILLUSTRATIONS = [
-  { part:'part2', contains:'шестиугольник без центра', src:'img/hexagon.png',
-    caption:'Знак: шестиугольник без центра', side:true },
+  { part:'part2', heading:'ПРОЛОГ', src:'img/hexagon.png',
+    caption:'Знак: шестиугольник без центра' },
 ];
 
 const LS = {
@@ -432,8 +433,14 @@ function renderScenario(md) {
 function injectIllustrations(partId) {
   const reader = document.getElementById('reader');
   ILLUSTRATIONS.filter(x => x.part === partId).forEach(x => {
-    const needle = x.contains.toLowerCase();
-    const target = [...reader.querySelectorAll('p,li')].find(el => el.textContent.toLowerCase().includes(needle));
+    let target;
+    if (x.heading) {
+      const h = x.heading.trim().toLowerCase();
+      target = [...reader.querySelectorAll('h2,h3')].find(el => el.textContent.trim().toLowerCase() === h);
+    } else {
+      const needle = x.contains.toLowerCase();
+      target = [...reader.querySelectorAll('p,li')].find(el => el.textContent.toLowerCase().includes(needle));
+    }
     if (!target) return;
     const fig = document.createElement('figure');
     fig.className = 'fig' + (x.side ? ' side' : '');
