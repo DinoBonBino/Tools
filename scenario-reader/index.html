@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#141210">
+<title>Towers of Creed — Сценарий</title>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --bg:#141210; --surface:#1e1a16; --surface2:#2a2420; --border:#3a3028;
+  --accent:#c9a84c; --accent2:#8a6a2a; --text:#e8dcc8; --muted:#9c8a76;
+  --dim:#5a4a3a; --red:#c07070; --green:#7fae5f;
+  --paper:#141210; --ink:#e8dcc8;
+  --read-w:44rem; --read-fs:18px;
+  --body-font:Georgia,'Times New Roman',serif;
+}
+:root[data-theme="sepia"] {
+  --bg:#efe6d4; --surface:#e6dbc4; --surface2:#dccfb4; --border:#cbbb98;
+  --accent:#8a6a1e; --accent2:#a9873a; --text:#3a2f22; --muted:#6d5c44;
+  --dim:#a99a7e; --paper:#f4ecda; --ink:#3a2f22;
+}
+:root[data-theme="light"] {
+  --bg:#f5f3ef; --surface:#ffffff; --surface2:#eeece7; --border:#dcd8d0;
+  --accent:#9a7d2c; --accent2:#b39544; --text:#241f18; --muted:#6b6355;
+  --dim:#b3ab9c; --paper:#ffffff; --ink:#241f18;
+}
+:root[data-sans="1"] { --body-font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+
+html,body { height:100%; }
+body {
+  font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text);
+  -webkit-text-size-adjust:100%; overflow:hidden;
+}
+
+/* ── GATE ─────────────────────────────────────────── */
+#gate {
+  position:fixed; inset:0; z-index:50; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; padding:24px;
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(201,168,76,.10), transparent 60%),
+    var(--bg);
+  text-align:center;
+}
+#gate.hidden { display:none; }
+.gate-logo { max-width:min(280px,70vw); max-height:180px; margin-bottom:6px; filter:drop-shadow(0 6px 24px rgba(0,0,0,.5)); }
+.gate-mark { font-size:44px; line-height:1; margin-bottom:14px; }
+.gate-title { font-family:Georgia,serif; font-size:clamp(22px,6vw,30px); font-weight:700; color:var(--accent); letter-spacing:1px; }
+.gate-sub { font-size:13px; color:var(--muted); margin-top:6px; letter-spacing:.5px; }
+.gate-form { margin-top:30px; width:100%; max-width:340px; display:flex; flex-direction:column; gap:10px; }
+.gate-input {
+  width:100%; background:var(--surface); border:1px solid var(--border); color:var(--text);
+  border-radius:8px; padding:13px 15px; font-size:16px; outline:none; text-align:center; letter-spacing:1px;
+}
+.gate-input:focus { border-color:var(--accent2); box-shadow:0 0 0 3px rgba(201,168,76,.12); }
+.gate-btn {
+  width:100%; padding:13px; border:none; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600;
+  background:var(--accent2); color:#fff8e6; letter-spacing:.5px; transition:background .15s;
+}
+.gate-btn:hover:not(:disabled) { background:var(--accent); color:#1a1610; }
+.gate-btn:disabled { opacity:.55; cursor:default; }
+.gate-err { min-height:18px; font-size:13px; color:var(--red); margin-top:2px; }
+.gate-foot { margin-top:26px; font-size:11px; color:var(--dim); line-height:1.7; max-width:320px; }
+
+/* ── APP ──────────────────────────────────────────── */
+#app { display:none; flex-direction:column; height:100dvh; }
+#app.show { display:flex; }
+
+#progress { position:fixed; top:0; left:0; height:3px; width:0; background:var(--accent); z-index:40; transition:width .12s linear; }
+
+/* topbar */
+#topbar {
+  display:flex; align-items:center; gap:8px; flex-shrink:0;
+  padding:env(safe-area-inset-top) calc(14px + env(safe-area-inset-right)) 0 calc(14px + env(safe-area-inset-left));
+  min-height:calc(52px + env(safe-area-inset-top));
+  background:var(--surface); border-bottom:1px solid var(--border);
+}
+.brand { display:flex; align-items:center; gap:8px; min-width:0; }
+.brand img { height:26px; width:auto; display:none; }
+.brand .mark { font-size:18px; }
+.brand .name { font-family:Georgia,serif; font-weight:700; color:var(--accent); font-size:15px; white-space:nowrap; letter-spacing:.5px; }
+@media (max-width:560px){ .brand .name { display:none; } }
+.spacer { flex:1; }
+
+.tabs { display:flex; gap:4px; background:var(--bg); border:1px solid var(--border); border-radius:9px; padding:3px; }
+.tab {
+  border:none; background:transparent; color:var(--muted); cursor:pointer;
+  padding:6px 14px; border-radius:7px; font-size:13px; font-weight:600; white-space:nowrap; letter-spacing:.3px;
+}
+.tab:hover { color:var(--text); }
+.tab.on { background:var(--accent2); color:#fff8e6; }
+:root[data-theme="light"] .tab.on, :root[data-theme="sepia"] .tab.on { color:#fff8e6; }
+
+.icon-btn {
+  border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer;
+  width:38px; height:38px; border-radius:8px; font-size:17px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.icon-btn:hover { color:var(--text); border-color:var(--accent2); }
+
+/* reading area */
+#scroller { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
+#reader {
+  max-width:var(--read-w); margin:0 auto; padding:34px 22px 40vh;
+  background:var(--paper); color:var(--ink);
+  font-family:var(--body-font); font-size:var(--read-fs); line-height:1.75;
+}
+@media (min-width:720px){ #reader { padding-left:34px; padding-right:34px; } }
+
+/* screenplay markdown */
+#reader h1 { display:none; }
+#reader h2 {
+  font-family:Georgia,serif; font-size:1.5em; color:var(--accent); text-align:center; letter-spacing:1.5px;
+  margin:2.4em 0 .2em; scroll-margin-top:70px;
+}
+#reader h2::before { content:''; display:block; width:54px; height:1px; background:var(--accent2); margin:0 auto 18px; opacity:.7; }
+#reader h3 { font-family:Georgia,serif; font-size:1.12em; font-style:italic; color:var(--muted); text-align:center; font-weight:400; margin:.1em 0 1.6em; scroll-margin-top:70px; }
+#reader h4,#reader h5 { font-size:.95em; color:var(--muted); margin:1.2em 0 .3em; }
+#reader p { margin:.85em 0; }
+#reader strong { color:var(--accent); font-weight:700; }
+#reader em { font-style:italic; color:var(--muted); }
+#reader hr { border:none; text-align:center; margin:1.9em 0; }
+#reader hr::after { content:'※'; color:var(--accent2); font-size:1.1em; letter-spacing:6px; }
+#reader ul,#reader ol { padding-left:1.5em; margin:.7em 0; }
+#reader li { margin:.3em 0; }
+#reader blockquote { border-left:3px solid var(--accent2); padding:6px 16px; margin:.9em 0; font-style:italic; color:var(--muted); }
+#reader code { font-family:monospace; background:var(--surface2); padding:1px 5px; border-radius:3px; font-size:.85em; }
+
+/* stage directions: **[ ... ]** */
+#reader .stage {
+  text-align:center; color:var(--muted); font-style:italic; letter-spacing:.5px;
+  font-size:.86em; text-transform:uppercase; margin:1.3em auto; max-width:32em; opacity:.92;
+}
+#reader .stage strong { color:var(--muted); font-weight:600; }
+/* dialogue: **NAME:** — line */
+#reader .line { margin:.7em 0; }
+#reader .line .who {
+  color:var(--accent); font-weight:700; font-family:system-ui,sans-serif; font-size:.82em;
+  letter-spacing:1px; text-transform:uppercase; margin-right:.15em;
+}
+
+/* ── TOC drawer ───────────────────────────────────── */
+#scrim { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:44; opacity:0; pointer-events:none; transition:opacity .2s; }
+#scrim.show { opacity:1; pointer-events:auto; }
+#toc {
+  position:fixed; top:0; right:0; bottom:0; width:min(320px,84vw); z-index:45;
+  background:var(--surface); border-left:1px solid var(--border);
+  transform:translateX(100%); transition:transform .22s ease; display:flex; flex-direction:column;
+  padding-top:env(safe-area-inset-top);
+}
+#toc.show { transform:none; box-shadow:-8px 0 32px rgba(0,0,0,.4); }
+.toc-head { display:flex; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border); }
+.toc-head .t { flex:1; font-weight:700; color:var(--accent); font-size:14px; letter-spacing:.5px; }
+.toc-list { flex:1; overflow-y:auto; padding:6px 0; }
+.toc-i { padding:9px 18px; cursor:pointer; font-size:13.5px; color:var(--muted); border-left:2px solid transparent; line-height:1.4; }
+.toc-i:hover { background:var(--surface2); color:var(--text); }
+.toc-i.h3 { padding-left:34px; font-size:12.5px; font-style:italic; color:var(--dim); }
+.toc-i.active { color:var(--accent); border-left-color:var(--accent); background:var(--surface2); }
+
+/* ── settings popover ─────────────────────────────── */
+#settings {
+  position:fixed; z-index:46; top:56px; right:14px; width:250px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.5); padding:14px; display:none;
+}
+#settings.show { display:block; }
+.set-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:11px 0; }
+.set-row:first-child { margin-top:2px; }
+.set-lbl { font-size:12.5px; color:var(--muted); letter-spacing:.3px; }
+.seg { display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden; }
+.seg button { border:none; background:transparent; color:var(--muted); cursor:pointer; padding:6px 10px; font-size:12.5px; min-width:34px; }
+.seg button.on { background:var(--accent2); color:#fff8e6; }
+.seg button:not(:last-child){ border-right:1px solid var(--border); }
+.set-sep { height:1px; background:var(--border); margin:12px 0; }
+
+::-webkit-scrollbar { width:8px; height:8px; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+.spinner { width:22px; height:22px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; display:inline-block; vertical-align:middle; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ── PASSWORD GATE ── -->
+<div id="gate">
+  <img class="gate-logo" id="gate-logo" alt="" src="logo.png">
+  <div class="gate-mark" id="gate-mark">⚔</div>
+  <div class="gate-title">TOWERS OF CREED</div>
+  <div class="gate-sub">Сценарий · для приглашённых читателей</div>
+  <form class="gate-form" id="gate-form" autocomplete="off">
+    <input class="gate-input" id="pass" type="password" placeholder="Введите пароль" autocomplete="off" spellcheck="false" autofocus>
+    <button class="gate-btn" id="gate-btn" type="submit">Читать</button>
+    <div class="gate-err" id="gate-err"></div>
+  </form>
+  <div class="gate-foot">Текст зашифрован. Пароль проверяется прямо в браузере —<br>ничего никуда не отправляется.</div>
+</div>
+
+<!-- ── READER APP ── -->
+<div id="app">
+  <div id="progress"></div>
+  <div id="topbar">
+    <div class="brand">
+      <img id="brand-logo" src="logo.png" alt=""><span class="mark" id="brand-mark">⚔</span>
+      <span class="name">Towers of Creed</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="tabs" id="tabs"></div>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="btn-toc" title="Оглавление">☰</button>
+    <button class="icon-btn" id="btn-set" title="Настройки чтения">Aa</button>
+    <button class="icon-btn" id="btn-lock" title="Выйти">🔒</button>
+  </div>
+
+  <div id="scroller"><div id="reader"></div></div>
+</div>
+
+<!-- settings -->
+<div id="settings">
+  <div class="set-row"><span class="set-lbl">Размер шрифта</span>
+    <div class="seg" id="seg-fs">
+      <button data-fs="16">A−</button><button data-fs="18">A</button><button data-fs="21">A+</button><button data-fs="24">A++</button>
+    </div>
+  </div>
+  <div class="set-row"><span class="set-lbl">Ширина</span>
+    <div class="seg" id="seg-w">
+      <button data-w="36">Уже</button><button data-w="44">Норма</button><button data-w="58">Шире</button>
+    </div>
+  </div>
+  <div class="set-row"><span class="set-lbl">Шрифт</span>
+    <div class="seg" id="seg-font">
+      <button data-sans="0">Serif</button><button data-sans="1">Sans</button>
+    </div>
+  </div>
+  <div class="set-sep"></div>
+  <div class="set-row"><span class="set-lbl">Тема</span>
+    <div class="seg" id="seg-theme">
+      <button data-theme="dark">Тёмная</button><button data-theme="sepia">Сепия</button><button data-theme="light">Светлая</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOC -->
+<div id="scrim"></div>
+<div id="toc">
+  <div class="toc-head"><span class="t">Оглавление</span><button class="icon-btn" id="toc-close" style="width:32px;height:32px">✕</button></div>
+  <div class="toc-list" id="toc-list"></div>
+</div>
+
+<script>
+// ── config: must match encrypt.mjs ──
+const KDF = { iter:250000, hash:'SHA-256' };
+const BUNDLE_URL = 'scenarios.enc.json';
+
+const LS = {
+  get:(k,d)=>{ try{ const v=localStorage.getItem('tsr_'+k); return v===null?d:v; }catch{ return d; } },
+  set:(k,v)=>{ try{ localStorage.setItem('tsr_'+k,v); }catch{} },
+};
+
+let PARTS = [];        // decrypted [{id,title,md}]
+let curPart = null;    // id
+let headings = [];     // [{el, level, text}] for current part
+let rafScroll = 0;
+
+// ── crypto ──
+const b64dec = (s)=>Uint8Array.from(atob(s), c=>c.charCodeAt(0));
+
+async function deriveKey(pass, salt) {
+  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:KDF.iter, hash:KDF.hash },
+    material, { name:'AES-GCM', length:256 }, false, ['decrypt']
+  );
+}
+
+async function decrypt(bundle, pass) {
+  const key = await deriveKey(pass, b64dec(bundle.salt));
+  const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv:b64dec(bundle.iv) }, key, b64dec(bundle.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+// ── gate ──
+let cachedBundle = null;
+async function fetchBundle() {
+  if (cachedBundle) return cachedBundle;
+  const res = await fetch(BUNDLE_URL + '?t=' + Date.now());
+  if (!res.ok) throw new Error('bundle_' + res.status);
+  cachedBundle = await res.json();
+  return cachedBundle;
+}
+
+async function tryUnlock(pass, { remember }) {
+  const bundle = await fetchBundle();
+  const data = await decrypt(bundle, pass);   // throws on wrong pass (GCM auth fail)
+  PARTS = data.parts || [];
+  if (remember) sessionStorage.setItem('tsr_pass', pass);
+  enterApp();
+}
+
+const gateEl = document.getElementById('gate');
+const errEl  = document.getElementById('gate-err');
+const passEl = document.getElementById('pass');
+const gateBtn= document.getElementById('gate-btn');
+
+document.getElementById('gate-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pass = passEl.value;
+  if (!pass) return;
+  errEl.textContent = '';
+  gateBtn.disabled = true; gateBtn.innerHTML = '<span class="spinner"></span>';
+  try {
+    await tryUnlock(pass, { remember:true });
+  } catch (err) {
+    if (String(err.message).startsWith('bundle_')) {
+      errEl.textContent = 'Не удалось загрузить сценарий (' + err.message.slice(7) + ').';
+    } else {
+      errEl.textContent = 'Неверный пароль.';
+      passEl.select();
+    }
+  } finally {
+    gateBtn.disabled = false; gateBtn.textContent = 'Читать';
+  }
+});
+
+function enterApp() {
+  gateEl.classList.add('hidden');
+  document.getElementById('app').classList.add('show');
+  buildTabs();
+  const saved = LS.get('part', PARTS[0]?.id);
+  openPart(PARTS.some(p=>p.id===saved) ? saved : PARTS[0].id, { restore:true });
+}
+
+// ── logo fallback (hide <img> if logo.png absent) ──
+function wireLogo(imgId, markId) {
+  const img = document.getElementById(imgId), mark = document.getElementById(markId);
+  img.addEventListener('load', () => { if (img.naturalWidth) { img.style.display='inline'; mark.style.display='none'; } });
+  img.addEventListener('error', () => { img.remove(); });
+}
+wireLogo('gate-logo','gate-mark');
+wireLogo('brand-logo','brand-mark');
+
+// ── tabs ──
+function buildTabs() {
+  document.getElementById('tabs').innerHTML = PARTS.map(p =>
+    `<button class="tab" data-id="${p.id}">${p.title}</button>`).join('');
+  document.querySelectorAll('#tabs .tab').forEach(b =>
+    b.onclick = () => openPart(b.dataset.id, {}));
+}
+
+function openPart(id, { restore }) {
+  if (curPart && curPart !== id) saveScroll();
+  curPart = id;
+  LS.set('part', id);
+  document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.id===id));
+  const part = PARTS.find(p => p.id===id);
+  const reader = document.getElementById('reader');
+  reader.innerHTML = renderScenario(part.md);
+  buildToc();
+  const scroller = document.getElementById('scroller');
+  const y = restore ? parseInt(LS.get('scroll_'+id, '0'), 10) || 0 : 0;
+  scroller.scrollTo({ top:y, behavior:'auto' });
+  updateProgress();
+  closeToc();
+}
+
+function saveScroll() {
+  const s = document.getElementById('scroller');
+  LS.set('scroll_' + curPart, String(Math.round(s.scrollTop)));
+}
+
+// ── markdown → screenplay HTML ──
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function inline(s){
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`(.+?)`/g,'<code>$1</code>');
+}
+
+function renderScenario(md) {
+  // strip the redundant title block (everything before the first "## " scene heading)
+  const all = md.split('\n');
+  let start = all.findIndex(l => /^##\s+/.test(l));
+  const lines = start > 0 ? all.slice(start) : all;
+
+  let html='', inUL=false, inOL=false;
+  const closeLists = () => { if(inUL){html+='</ul>';inUL=false;} if(inOL){html+='</ol>';inOL=false;} };
+  let i=0;
+  while (i < lines.length) {
+    const l = lines[i];
+
+    if (/^-{3,}$/.test(l.trim())) { closeLists(); html+='<hr>'; i++; continue; }
+
+    const hm = l.match(/^(#{1,6})\s+(.+)$/);
+    if (hm) { closeLists(); const lv=hm[1].length; html+=`<h${lv}>${inline(hm[2])}</h${lv}>`; i++; continue; }
+
+    if (l.startsWith('>')) {
+      closeLists(); let q='';
+      while (i<lines.length && lines[i].startsWith('>')) { q+=`<p>${inline(lines[i].replace(/^>\s?/,''))}</p>`; i++; }
+      html+=`<blockquote>${q}</blockquote>`; continue;
+    }
+
+    const ul = l.match(/^[-*+]\s+(.+)$/);
+    if (ul) { if(!inUL){closeLists();html+='<ul>';inUL=true;} html+=`<li>${inline(ul[1])}</li>`; i++; continue; }
+    const ol = l.match(/^\d+\.\s+(.+)$/);
+    if (ol) { if(!inOL){closeLists();html+='<ol>';inOL=true;} html+=`<li>${inline(ol[1])}</li>`; i++; continue; }
+
+    if (!l.trim()) { closeLists(); i++; continue; }
+
+    closeLists();
+    const t = l.trim();
+    // stage direction: **[ ... ]**
+    if (/^\*\*\[.*\]\*\*$/.test(t)) { html+=`<p class="stage">${inline(t.replace(/^\*\*|\*\*$/g,''))}</p>`; i++; continue; }
+    // dialogue: **NAME:** — text
+    const dm = t.match(/^\*\*([^*]{1,40}?):\*\*\s*(.*)$/);
+    if (dm) { html+=`<p class="line"><span class="who">${esc(dm[1])}</span> ${inline(dm[2])}</p>`; i++; continue; }
+    html+=`<p>${inline(t)}</p>`; i++;
+  }
+  closeLists();
+  return html;
+}
+
+// ── TOC ──
+function buildToc() {
+  const reader = document.getElementById('reader');
+  headings = [...reader.querySelectorAll('h2,h3')].map((el, idx) => {
+    el.id = 'sc' + idx;
+    return { el, level: el.tagName==='H2' ? 2 : 3, text: el.textContent };
+  });
+  document.getElementById('toc-list').innerHTML = headings.map((h,idx) =>
+    `<div class="toc-i ${h.level===3?'h3':''}" data-idx="${idx}">${esc(h.text)}</div>`).join('');
+  document.querySelectorAll('#toc-list .toc-i').forEach(el =>
+    el.onclick = () => {
+      const h = headings[el.dataset.idx];
+      h.el.scrollIntoView({ behavior:'smooth', block:'start' });
+      closeToc();
+    });
+}
+
+function openToc(){ document.getElementById('toc').classList.add('show'); document.getElementById('scrim').classList.add('show'); markActiveToc(); }
+function closeToc(){ document.getElementById('toc').classList.remove('show'); document.getElementById('scrim').classList.remove('show'); }
+document.getElementById('btn-toc').onclick = openToc;
+document.getElementById('toc-close').onclick = closeToc;
+document.getElementById('scrim').onclick = closeToc;
+
+function markActiveToc() {
+  const top = document.getElementById('scroller').scrollTop + 90;
+  let active = 0;
+  headings.forEach((h,idx) => { if (h.el.offsetTop <= top) active = idx; });
+  document.querySelectorAll('#toc-list .toc-i').forEach((el,idx) => el.classList.toggle('active', idx===active));
+}
+
+// ── progress + scroll persistence ──
+const scroller = document.getElementById('scroller');
+scroller.addEventListener('scroll', () => {
+  if (rafScroll) return;
+  rafScroll = requestAnimationFrame(() => {
+    rafScroll = 0; updateProgress(); markActiveToc(); saveScroll();
+  });
+});
+function updateProgress() {
+  const max = scroller.scrollHeight - scroller.clientHeight;
+  const pct = max > 0 ? (scroller.scrollTop / max) * 100 : 0;
+  document.getElementById('progress').style.width = pct + '%';
+}
+window.addEventListener('resize', updateProgress);
+
+// ── settings ──
+const setEl = document.getElementById('settings');
+document.getElementById('btn-set').onclick = (e) => { e.stopPropagation(); setEl.classList.toggle('show'); };
+document.addEventListener('click', (e) => {
+  if (setEl.classList.contains('show') && !setEl.contains(e.target) && e.target.id!=='btn-set') setEl.classList.remove('show');
+});
+
+function applyPref(varName, value, unit='') { document.documentElement.style.setProperty(varName, value+unit); }
+function wireSeg(segId, attr, apply, storeKey) {
+  const seg = document.getElementById(segId);
+  seg.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const v = b.dataset[attr];
+    seg.querySelectorAll('button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    apply(v); LS.set(storeKey, v);
+  });
+}
+function selectSeg(segId, attr, v) {
+  document.querySelectorAll(`#${segId} button`).forEach(b => b.classList.toggle('on', b.dataset[attr]===String(v)));
+}
+
+wireSeg('seg-fs','fs',   v=>{ applyPref('--read-fs',v,'px'); updateProgress(); }, 'fs');
+wireSeg('seg-w','w',     v=>{ applyPref('--read-w',v,'rem'); updateProgress(); }, 'w');
+wireSeg('seg-font','sans',v=>{ document.documentElement.setAttribute('data-sans',v); }, 'sans');
+wireSeg('seg-theme','theme',v=>{ document.documentElement.setAttribute('data-theme',v);
+  document.querySelector('meta[name=theme-color]').content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(); }, 'theme');
+
+function loadPrefs() {
+  const fs = LS.get('fs','18'), w = LS.get('w','44'), sans = LS.get('sans','0'), theme = LS.get('theme','dark');
+  applyPref('--read-fs',fs,'px'); applyPref('--read-w',w,'rem');
+  document.documentElement.setAttribute('data-sans',sans);
+  document.documentElement.setAttribute('data-theme',theme);
+  selectSeg('seg-fs','fs',fs); selectSeg('seg-w','w',w); selectSeg('seg-font','sans',sans); selectSeg('seg-theme','theme',theme);
+}
+
+// ── lock / logout ──
+document.getElementById('btn-lock').onclick = () => {
+  sessionStorage.removeItem('tsr_pass');
+  location.reload();
+};
+
+// ── init ──
+loadPrefs();
+(async function init() {
+  const remembered = sessionStorage.getItem('tsr_pass');
+  if (remembered) {
+    try { await tryUnlock(remembered, { remember:false }); return; }
+    catch { sessionStorage.removeItem('tsr_pass'); }
+  }
+  passEl.focus();
+})();
+</script>
+</body>
+</html>
