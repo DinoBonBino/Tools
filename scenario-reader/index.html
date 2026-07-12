@@ -126,6 +126,14 @@ body {
 #reader blockquote { border-left:3px solid var(--accent2); padding:6px 16px; margin:.9em 0; font-style:italic; color:var(--muted); }
 #reader code { font-family:monospace; background:var(--surface2); padding:1px 5px; border-radius:3px; font-size:.85em; }
 
+/* inline illustration attached to a scenario line */
+#reader figure.fig { margin:1.4em auto; text-align:center; max-width:min(100%,300px); }
+#reader figure.fig img { max-width:100%; height:auto; border:1px solid var(--border); border-radius:10px; background:var(--surface2); box-shadow:0 6px 22px rgba(0,0,0,.28); }
+#reader figure.fig figcaption { font-size:.8em; color:var(--muted); font-style:italic; margin-top:.55em; letter-spacing:.3px; }
+@media (min-width:820px) {
+  #reader figure.fig.side { float:right; max-width:240px; margin:.2em 0 1em 1.6em; }
+}
+
 /* stage directions: **[ ... ]** */
 #reader .stage {
   text-align:center; color:var(--muted); font-style:italic; letter-spacing:.5px;
@@ -257,6 +265,15 @@ const MANIFEST = [
 ];
 const TOKEN_KEY = 'toc_gh_token'; // shared with lore-editor on the same origin
 
+// Images attached to specific scenario lines. Files live in this public folder
+// (img/…); the private scenario text is left untouched. If an image is missing,
+// its figure is silently removed. `side:true` floats it beside the text on wide
+// screens; otherwise it's a centered block.
+const ILLUSTRATIONS = [
+  { part:'part2', contains:'шестиугольник без центра', src:'img/hexagon.png',
+    caption:'Знак: шестиугольник без центра', side:true },
+];
+
 const LS = {
   get:(k,d)=>{ try{ const v=localStorage.getItem('tsr_'+k); return v===null?d:v; }catch{ return d; } },
   set:(k,v)=>{ try{ localStorage.setItem('tsr_'+k,v); }catch{} },
@@ -345,6 +362,7 @@ function openPart(id, { restore }) {
   const part = PARTS.find(p => p.id===id);
   const reader = document.getElementById('reader');
   reader.innerHTML = renderScenario(part.md);
+  injectIllustrations(id);
   buildToc();
   const scroller = document.getElementById('scroller');
   const y = restore ? parseInt(LS.get('scroll_'+id, '0'), 10) || 0 : 0;
@@ -408,6 +426,24 @@ function renderScenario(md) {
   }
   closeLists();
   return html;
+}
+
+// ── inline illustrations ──
+function injectIllustrations(partId) {
+  const reader = document.getElementById('reader');
+  ILLUSTRATIONS.filter(x => x.part === partId).forEach(x => {
+    const needle = x.contains.toLowerCase();
+    const target = [...reader.querySelectorAll('p,li')].find(el => el.textContent.toLowerCase().includes(needle));
+    if (!target) return;
+    const fig = document.createElement('figure');
+    fig.className = 'fig' + (x.side ? ' side' : '');
+    const img = document.createElement('img');
+    img.src = x.src; img.alt = x.caption || ''; img.loading = 'lazy';
+    img.addEventListener('error', () => fig.remove());
+    fig.appendChild(img);
+    if (x.caption) { const cap = document.createElement('figcaption'); cap.textContent = x.caption; fig.appendChild(cap); }
+    target.insertAdjacentElement('afterend', fig);
+  });
 }
 
 // ── TOC ──
