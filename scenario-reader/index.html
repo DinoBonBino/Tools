@@ -135,16 +135,24 @@ body {
 }
 
 /* interactive choice point */
-#reader .choice { margin:2em auto; text-align:center; max-width:360px; }
-#reader .choice-img { max-width:min(100%,300px); height:auto; display:block; margin:0 auto 1.1em; border:1px solid var(--border); border-radius:12px; background:var(--surface2); box-shadow:0 6px 24px rgba(0,0,0,.35); transition:opacity .2s; }
-#reader .choice-btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+#reader .choice { margin:2.2em auto; text-align:center; max-width:480px; }
+#reader .choice-img { width:min(100%,460px); height:auto; display:block; margin:0 auto 1.3em; border:1px solid var(--border); border-radius:14px; background:var(--surface2); box-shadow:0 8px 30px rgba(0,0,0,.4); transition:opacity .2s; }
+#reader .choice-btns { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
 #reader .choice-btn {
-  font-family:system-ui,-apple-system,sans-serif; font-weight:700; letter-spacing:1px; text-transform:uppercase; font-size:13px;
+  font-family:system-ui,-apple-system,sans-serif; font-weight:700; letter-spacing:1px; text-transform:uppercase; font-size:14px;
   color:var(--accent); background:var(--surface); border:1px solid var(--accent2); border-radius:9px;
-  padding:12px 22px; cursor:pointer; transition:background .15s,color .15s,box-shadow .15s; -webkit-tap-highlight-color:transparent;
+  padding:13px 26px; cursor:pointer; transition:background .15s,color .15s,box-shadow .15s,opacity .15s; -webkit-tap-highlight-color:transparent;
 }
-#reader .choice-btn:hover { background:var(--accent2); color:#fff8e6; }
+#reader .choice-btn:hover:not(:disabled) { background:var(--accent2); color:#fff8e6; }
 #reader .choice-btn.chosen { background:var(--accent); color:#1a1610; border-color:var(--accent); box-shadow:0 0 0 3px rgba(201,168,76,.22); }
+#reader .choice-btn:disabled { cursor:default; }
+#reader .choice-btn:disabled:not(.chosen) { opacity:.4; }
+#reader .choice-back {
+  display:block; margin:2.6em auto 1em; font-family:system-ui,-apple-system,sans-serif; font-size:13px; letter-spacing:.5px;
+  color:var(--muted); background:transparent; border:1px solid var(--border); border-radius:8px; padding:11px 22px; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+#reader .choice-back:hover { color:var(--accent); border-color:var(--accent2); }
 
 /* stage directions: **[ ... ]** */
 #reader .stage {
@@ -292,10 +300,16 @@ const ILLUSTRATIONS = [
 const INTERACTIONS = [
   {
     part:'part2',
-    contains:'[ СЛИЯНИЕ ]',
-    closed:'img/close.png',
-    open:'img/open.png',
-    choices:['СЛИЯНИЕ', 'РАЗДЕЛЕНИЕ'],
+    contains:'[ СЛИЯНИЕ ]',          // the choice prompt line (replaced by the widget)
+    closed:'img/close.png',           // eyes closed — before the choice
+    open:'img/open.png',              // eyes open — after the choice
+    // stage-direction markers that split the endings. Everything from the choice
+    // to the end is hidden until a choice is made.
+    markers:{ merge:'[СЛИЯНИЕ]', split:'[РАЗДЕЛЕНИЕ]' },
+    choices:[
+      { label:'СЛИЯНИЕ',    branch:'merge' },
+      { label:'РАЗДЕЛЕНИЕ', branch:'split' },
+    ],
   },
 ];
 
@@ -482,33 +496,64 @@ function injectIllustrations(partId) {
 function injectInteractions(partId) {
   const reader = document.getElementById('reader');
   INTERACTIONS.filter(x => x.part === partId).forEach(x => {
-    const needle = x.contains.toLowerCase();
-    const target = [...reader.querySelectorAll('p,li')].find(el => el.textContent.toLowerCase().includes(needle));
-    if (!target) return;
+    const kids = [...reader.children];
+    const stageEq = (el, t) => el.classList && el.classList.contains('stage') && el.textContent.trim() === t;
 
-    const box = document.createElement('div');
-    box.className = 'choice';
+    const choiceEl  = kids.find(el => el.textContent.toLowerCase().includes(x.contains.toLowerCase()));
+    const mergeEl   = kids.find(el => stageEq(el, x.markers.merge));
+    const splitEl   = kids.find(el => stageEq(el, x.markers.split));
+    if (!choiceEl || !mergeEl || !splitEl) return; // unexpected structure — leave text as-is
 
-    const img = document.createElement('img');
-    img.className = 'choice-img'; img.src = x.closed; img.alt = ''; img.loading = 'lazy';
+    const iChoice = kids.indexOf(choiceEl);
+    const iMerge  = kids.indexOf(mergeEl);
+    const iSplit  = kids.indexOf(splitEl);
+
+    const transition = kids.slice(iChoice + 1, iMerge);   // shared "eyes open" beat
+    const mergeNodes = kids.slice(iMerge, iSplit);        // СЛИЯНИЕ ending (no credits)
+    const splitNodes = kids.slice(iSplit);                // РАЗДЕЛЕНИЕ ending + credits + post-credits, to EOF
+
+    const all = [...transition, ...mergeNodes, ...splitNodes];
+    const setDisp = (arr, v) => arr.forEach(n => n.style.display = v);
+    const hideAll = () => setDisp(all, 'none');
+
+    // widget
+    const box = document.createElement('div'); box.className = 'choice';
+    const img = document.createElement('img'); img.className = 'choice-img'; img.src = x.closed; img.alt = '';
     img.addEventListener('error', () => { img.style.display = 'none'; });
+    new Image().src = x.open; // preload the "open" frame so the swap is instant
 
-    const row = document.createElement('div');
-    row.className = 'choice-btns';
-    x.choices.forEach(label => {
-      const btn = document.createElement('button');
-      btn.type = 'button'; btn.className = 'choice-btn'; btn.textContent = label;
-      btn.addEventListener('click', () => {
-        img.src = x.open; img.style.display = '';
-        row.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('chosen'));
-        btn.classList.add('chosen');
-        playDrum();
-      });
-      row.appendChild(btn);
+    const row = document.createElement('div'); row.className = 'choice-btns';
+    const back = document.createElement('button');
+    back.type = 'button'; back.className = 'choice-back'; back.textContent = '↩ Вернуться к выбору';
+
+    const buttons = [];
+    const choose = (label, branchNodes, otherNodes) => {
+      img.src = x.open; img.style.display = '';
+      setDisp(transition, ''); setDisp(branchNodes, '');
+      setDisp(otherNodes, 'none');
+      buttons.forEach(b => { b.disabled = true; b.classList.toggle('chosen', b.textContent === label); });
+      branchNodes[branchNodes.length - 1].insertAdjacentElement('afterend', back);
+      playDrum();
+    };
+    x.choices.forEach(c => {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'choice-btn'; btn.textContent = c.label;
+      const mine  = c.branch === 'merge' ? mergeNodes : splitNodes;
+      const other = c.branch === 'merge' ? splitNodes : mergeNodes;
+      btn.addEventListener('click', () => { if (!btn.disabled) choose(c.label, mine, other); });
+      buttons.push(btn); row.appendChild(btn);
+    });
+
+    back.addEventListener('click', () => {
+      img.src = x.closed; img.style.display = '';
+      hideAll();
+      buttons.forEach(b => { b.disabled = false; b.classList.remove('chosen'); });
+      back.remove();
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 
     box.appendChild(img); box.appendChild(row);
-    target.replaceWith(box);
+    choiceEl.replaceWith(box);
+    hideAll(); // before a choice: no scenario below the widget
   });
 }
 
