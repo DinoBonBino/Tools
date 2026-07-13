@@ -97,6 +97,8 @@ body {
   width:38px; height:38px; border-radius:8px; font-size:17px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
 }
 .icon-btn:hover { color:var(--text); border-color:var(--accent2); }
+.icon-btn.off { opacity:.4; }
+#btn-music.on { color:var(--accent); border-color:var(--accent2); }
 
 /* reading area */
 #scroller { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
@@ -238,6 +240,7 @@ body {
     <div class="spacer"></div>
     <div class="tabs" id="tabs"></div>
     <div class="spacer"></div>
+    <button class="icon-btn" id="btn-music" title="Фоновая музыка">♪</button>
     <button class="icon-btn" id="btn-toc" title="Оглавление">☰</button>
     <button class="icon-btn" id="btn-set" title="Настройки чтения">Aa</button>
     <button class="icon-btn" id="btn-lock" title="Выйти (удалить ключ)">🔒</button>
@@ -377,6 +380,8 @@ function enterApp() {
   buildTabs();
   const saved = LS.get('part', PARTS[0]?.id);
   openPart(PARTS.some(p=>p.id===saved) ? saved : PARTS[0].id, { restore:true });
+  setMusicBtn();
+  if (isMusicOn()) startMusic();
 }
 
 // ── logo fallback (hide <img> if logo.png absent) ──
@@ -622,6 +627,109 @@ function playDrum() {
     dread.connect(df).connect(dg).connect(master); dread.start(t); dread.stop(t + 0.9);
   } catch (e) { /* audio not available — silent */ }
 }
+
+// ── ambient background music (procedural, no file) ─────────────
+// A dark, slow A-minor drone with a gently "breathing" filter, light reverb
+// and rare soft notes. Low and evolving so it sets a mood without distracting.
+let music = null;
+function isMusicOn() { return LS.get('music', 'on') !== 'off'; }
+
+function startMusic() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = audioCtx || new AC();
+    const ctx = audioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    if (music) return;
+
+    const now = ctx.currentTime;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(0.12, now + 5); // slow fade-in
+    master.connect(ctx.destination);
+
+    // light reverb from a synthetic impulse
+    const conv = ctx.createConvolver();
+    const rlen = Math.floor(ctx.sampleRate * 3);
+    const imp = ctx.createBuffer(2, rlen, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = imp.getChannelData(ch); for (let i = 0; i < rlen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rlen, 2.5); }
+    conv.buffer = imp;
+    const wet = ctx.createGain(); wet.gain.value = 0.55; conv.connect(wet).connect(master);
+    const dry = ctx.createGain(); dry.gain.value = 0.75; dry.connect(master);
+
+    // shared lowpass that slowly opens and closes = "breathing"
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 480; lp.Q.value = 0.4;
+    lp.connect(dry); lp.connect(conv);
+    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.05; // ~20s cycle
+    const lfoAmt = ctx.createGain(); lfoAmt.gain.value = 240; lfo.connect(lfoAmt).connect(lp.frequency); lfo.start(now);
+
+    // drone voices (A minor: A / E / A / E) with detuned pairs for warmth
+    const drone = ctx.createGain(); drone.gain.value = 0.5; drone.connect(lp);
+    const voices = [];
+    const voice = (freq, type, gain, detune) => {
+      const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq; if (detune) o.detune.value = detune;
+      const g = ctx.createGain(); g.gain.value = gain; o.connect(g).connect(drone); o.start(now); voices.push(o);
+    };
+    voice(55, 'sine', 0.5); voice(55, 'sine', 0.4, 7);   // A1 + slow beat
+    voice(82.41, 'triangle', 0.26);                       // E2 (fifth)
+    voice(110, 'sine', 0.22);                             // A2
+    voice(164.81, 'triangle', 0.1, -5);                   // E3 air
+    voice(220, 'sine', 0.13);                             // A3 — mid presence so it carries on laptop speakers
+    voice(329.63, 'triangle', 0.08, 5);                   // E4 — breathes in/out with the filter
+    voice(440, 'sine', 0.03);                             // A4 — faint upper halo
+
+    // rare soft notes from A-minor pentatonic, through the reverb
+    const scale = [220, 261.63, 329.63, 392, 440, 523.25]; // A C E G A C
+    let noteTimer = null;
+    const scheduleNote = () => {
+      noteTimer = setTimeout(() => {
+        if (!music) return;
+        const f = scale[Math.floor(Math.random() * scale.length)];
+        const t = ctx.currentTime;
+        const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.08, t + 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + 4.5);
+        o.connect(g); g.connect(conv); g.connect(dry);
+        o.start(t); o.stop(t + 5);
+        scheduleNote();
+      }, 9000 + Math.random() * 16000); // every 9–25s
+    };
+    scheduleNote();
+
+    music = {
+      stop() {
+        const t = ctx.currentTime;
+        try { master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value || 0.1, t); master.gain.exponentialRampToValueAtTime(0.0001, t + 1.5); } catch (e) {}
+        voices.forEach(o => { try { o.stop(t + 1.7); } catch (e) {} });
+        try { lfo.stop(t + 1.7); } catch (e) {}
+        if (noteTimer) clearTimeout(noteTimer);
+      }
+    };
+  } catch (e) { /* audio not available — silent */ }
+}
+
+function stopMusic() { if (music) { music.stop(); music = null; } }
+
+function setMusicBtn() {
+  const b = document.getElementById('btn-music'); if (!b) return;
+  const on = isMusicOn();
+  b.textContent = on ? '♪' : '♪';
+  b.classList.toggle('on', on); b.classList.toggle('off', !on);
+  b.title = on ? 'Музыка включена' : 'Музыка выключена';
+}
+document.getElementById('btn-music').onclick = () => {
+  const on = !isMusicOn();
+  LS.set('music', on ? 'on' : 'off');
+  setMusicBtn();
+  if (on) startMusic(); else stopMusic();
+};
+
+// resume audio + start music on the first real gesture (autoplay policy)
+document.addEventListener('pointerdown', () => {
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  if (isMusicOn() && !music && document.getElementById('app').classList.contains('show')) startMusic();
+}, { passive: true });
 
 // ── TOC ──
 function buildToc() {
