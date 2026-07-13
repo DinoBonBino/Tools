@@ -313,6 +313,9 @@ const INTERACTIONS = [
       { label:'СЛИЯНИЕ',    branch:'merge' },
       { label:'РАЗДЕЛЕНИЕ', branch:'split' },
     ],
+    // quiet background track that starts when this line scrolls into view (in the
+    // РАЗДЕЛЕНИЕ ending) and stops on 'Вернуться к выбору'.
+    music:{ contains:'Ни грома, ни зарева', src:'img/powerless.mp3', volume:0.3, loop:true },
   },
 ];
 
@@ -320,6 +323,7 @@ const INTERACTIONS = [
 const CHOICE_SOUNDS = ['img/Sound 3.mp3'];
 let choiceBuffers = [];
 let choiceSoundIdx = 0;
+let endMusicStop = null; // stops the ending background track (set per choice widget)
 
 const LS = {
   get:(k,d)=>{ try{ const v=localStorage.getItem('tsr_'+k); return v===null?d:v; }catch{ return d; } },
@@ -415,6 +419,7 @@ function openPart(id, { restore }) {
   LS.set('part', id);
   document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.id===id));
   const part = PARTS.find(p => p.id===id);
+  if (endMusicStop) { endMusicStop(); endMusicStop = null; } // stop any ending track before re-render
   const reader = document.getElementById('reader');
   reader.innerHTML = renderScenario(part.md);
   reader.classList.remove('no-tail');
@@ -543,6 +548,32 @@ function injectInteractions(partId) {
     const back = document.createElement('button');
     back.type = 'button'; back.className = 'choice-back'; back.textContent = '↩ Вернуться к выбору';
 
+    // ending background track: starts when its line scrolls into view, stops on "back"
+    let endEl = null, endObs = null, endOn = false;
+    const stopEndMusic = () => {
+      if (endObs) { try { endObs.disconnect(); } catch (e) {} endObs = null; }
+      if (endEl) { try { endEl.pause(); endEl.currentTime = 0; } catch (e) {} }
+      endOn = false;
+    };
+    const setupEndMusic = () => {
+      if (!x.music) return;
+      const target = [...reader.querySelectorAll('p,li')].find(el => getComputedStyle(el).display !== 'none' && el.textContent.includes(x.music.contains));
+      if (!target) return;
+      if (!endEl) { endEl = new Audio(encodeURI(x.music.src)); endEl.loop = !!x.music.loop; endEl.volume = x.music.volume != null ? x.music.volume : 0.3; endEl.preload = 'auto'; }
+      // iOS unlock: a muted play+pause inside this click gesture lets the observer play it later
+      try {
+        endEl.muted = true;
+        const p = endEl.play();
+        if (p && p.then) p.then(() => { if (!endOn) { endEl.pause(); endEl.currentTime = 0; } endEl.muted = false; }).catch(() => { endEl.muted = false; });
+        else endEl.muted = false;
+      } catch (e) {}
+      endObs = new IntersectionObserver((ents) => {
+        ents.forEach(en => { if (en.isIntersecting && !endOn) { endOn = true; try { endEl.muted = false; endEl.currentTime = 0; const pp = endEl.play(); if (pp && pp.catch) pp.catch(() => {}); } catch (e) {} } });
+      }, { root: document.getElementById('scroller'), threshold: 0.2 });
+      endObs.observe(target);
+      endMusicStop = stopEndMusic;
+    };
+
     const buttons = [];
     const choose = (label, branchNodes, otherNodes) => {
       img.src = x.open; img.style.display = '';
@@ -552,6 +583,7 @@ function injectInteractions(partId) {
       branchNodes[branchNodes.length - 1].insertAdjacentElement('afterend', back);
       reader.classList.remove('no-tail'); // revealed content needs the reading tail again
       playChoiceSound();
+      setupEndMusic();
     };
     x.choices.forEach(c => {
       const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'choice-btn'; btn.textContent = c.label;
@@ -562,6 +594,7 @@ function injectInteractions(partId) {
     });
 
     back.addEventListener('click', () => {
+      stopEndMusic(); endMusicStop = null;
       img.src = x.closed; img.style.display = '';
       hideAll();
       buttons.forEach(b => { b.disabled = false; b.classList.remove('chosen'); });
