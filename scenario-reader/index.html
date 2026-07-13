@@ -319,9 +319,8 @@ const INTERACTIONS = [
   },
 ];
 
-// TEMP (auditioning): the choice buttons cycle through these on each pick so
-// you can compare them. Once you choose one, we'll switch to just that file.
-const CHOICE_SOUNDS = ['img/Sound 1.wav', 'img/Sound 2.wav', 'img/Sound 3.mp3'];
+// The choice-button sound (the file picked after auditioning).
+const CHOICE_SOUNDS = ['img/Sound 3.mp3'];
 let choiceBuffers = [];
 let choiceSoundIdx = 0;
 
@@ -550,33 +549,31 @@ function injectInteractions(partId) {
     back.type = 'button'; back.className = 'choice-back'; back.textContent = '↩ Вернуться к выбору';
 
     const buttons = [];
-    let selected = null;
-    const deselect = () => { // return to the closed image, hide the ending — no sound
-      img.src = x.closed; img.style.display = '';
-      hideAll();
-      buttons.forEach(b => b.classList.remove('chosen'));
-      back.remove();
-      reader.classList.add('no-tail');
-      selected = null;
-    };
-    const select = (btn, branchNodes, otherNodes) => {
+    const choose = (label, branchNodes, otherNodes) => {
       img.src = x.open; img.style.display = '';
-      setDisp(transition, ''); setDisp(branchNodes, ''); setDisp(otherNodes, 'none');
-      buttons.forEach(b => b.classList.toggle('chosen', b === btn));
+      setDisp(transition, ''); setDisp(branchNodes, '');
+      setDisp(otherNodes, 'none');
+      buttons.forEach(b => { b.disabled = true; b.classList.toggle('chosen', b.textContent === label); });
       branchNodes[branchNodes.length - 1].insertAdjacentElement('afterend', back);
-      reader.classList.remove('no-tail');
-      selected = btn;
-      playChoiceSound(); // cycles through the candidate sounds
+      reader.classList.remove('no-tail'); // revealed content needs the reading tail again
+      playChoiceSound();
     };
     x.choices.forEach(c => {
       const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'choice-btn'; btn.textContent = c.label;
       const mine  = c.branch === 'merge' ? mergeNodes : splitNodes;
       const other = c.branch === 'merge' ? splitNodes : mergeNodes;
-      btn.addEventListener('click', () => { if (btn === selected) deselect(); else select(btn, mine, other); });
+      btn.addEventListener('click', () => { if (!btn.disabled) choose(c.label, mine, other); });
       buttons.push(btn); row.appendChild(btn);
     });
 
-    back.addEventListener('click', () => { deselect(); box.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    back.addEventListener('click', () => {
+      img.src = x.closed; img.style.display = '';
+      hideAll();
+      buttons.forEach(b => { b.disabled = false; b.classList.remove('chosen'); });
+      back.remove();
+      reader.classList.add('no-tail'); // back to the last-thing-on-page state
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
 
     box.appendChild(img); box.appendChild(row);
     choiceEl.replaceWith(box);
@@ -644,7 +641,7 @@ function playDrum() {
   } catch (e) { /* audio not available — silent */ }
 }
 
-// ── choice button sound (auditions the uploaded files, cycling) ──
+// ── choice button sound (plays the uploaded file) ──
 function preloadChoiceSounds() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
