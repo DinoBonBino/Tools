@@ -636,38 +636,26 @@ function playDrum() {
   } catch (e) { /* audio not available — silent */ }
 }
 
-// ── choice button sound (plays the uploaded file) ──
-// decodeAudioData in both promise and callback form (older Safari needs callbacks)
-function decodeAudio(ab) {
-  return new Promise((resolve, reject) => {
-    let done = false;
-    const p = audioCtx.decodeAudioData(ab, b => { done = true; resolve(b); }, e => { done = true; reject(e); });
-    if (p && p.then) p.then(b => { if (!done) resolve(b); }, e => { if (!done) reject(e); });
-  });
-}
+// ── choice button sound ──
+// Plain <audio> element: play() on the button click works reliably everywhere
+// (incl. iOS/Safari) and doesn't depend on a Web Audio context being awake.
 function preloadChoiceSounds() {
-  try {
-    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    audioCtx = audioCtx || new AC();
-    CHOICE_SOUNDS.forEach((url, i) => {
-      if (choiceBuffers[i]) return;
-      fetch(encodeURI(url)).then(r => r.arrayBuffer()).then(decodeAudio).then(buf => { choiceBuffers[i] = buf; }).catch(() => {});
-    });
-  } catch (e) {}
+  CHOICE_SOUNDS.forEach((url, i) => {
+    if (choiceBuffers[i]) return;
+    const a = new Audio(encodeURI(url));
+    a.preload = 'auto';
+    choiceBuffers[i] = a;
+  });
 }
 function playChoiceSound() {
   try {
-    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    audioCtx = audioCtx || new AC();
     const idx = choiceSoundIdx % CHOICE_SOUNDS.length;
     choiceSoundIdx = (choiceSoundIdx + 1) % CHOICE_SOUNDS.length;
-    const fire = (buf) => {
-      const go = () => { const s = audioCtx.createBufferSource(); s.buffer = buf; s.connect(audioCtx.destination); s.start(); };
-      if (audioCtx.state === 'suspended') audioCtx.resume().then(go).catch(go); // wait for resume, then play (Safari race)
-      else go();
-    };
-    if (choiceBuffers[idx]) fire(choiceBuffers[idx]);
-    else fetch(encodeURI(CHOICE_SOUNDS[idx])).then(r => r.arrayBuffer()).then(decodeAudio).then(buf => { choiceBuffers[idx] = buf; fire(buf); }).catch(() => {});
+    let a = choiceBuffers[idx];
+    if (!a) { a = new Audio(encodeURI(CHOICE_SOUNDS[idx])); choiceBuffers[idx] = a; }
+    try { a.currentTime = 0; } catch (e) {}
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});
   } catch (e) {}
 }
 
