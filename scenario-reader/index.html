@@ -297,7 +297,7 @@ const TOKEN_KEY = 'toc_gh_token'; // shared with lore-editor on the same origin
 // wide screens; otherwise it's a centered block.
 const ILLUSTRATIONS = [
   { part:'part2', heading:'ПРОЛОГ', src:'img/sign.png' },
-  { part:'part2', contains:'удержать мир', src:'img/83AB9565-7388-49D0-BFF5-620E48853432.png', full:true },
+  { part:'part2', contains:'удержать мир', src:'img/83AB9565-7388-49D0-BFF5-620E48853432.jpg', full:true },
 ];
 
 // Interactive choice points. The scenario line matched by `contains` is replaced
@@ -318,7 +318,7 @@ const INTERACTIONS = [
     ],
     // quiet background track that starts when this line scrolls into view (in the
     // РАЗДЕЛЕНИЕ ending) and stops on 'Вернуться к выбору'.
-    music:{ contains:'Ни грома, ни зарева', src:'img/powerless.mp3', volume:0.1, loop:true },
+    music:{ contains:'Ни грома, ни зарева', src:'img/powerless.mp3', volume:0.1, loop:true, fade:3 },
   },
 ];
 
@@ -551,10 +551,28 @@ function injectInteractions(partId) {
     const back = document.createElement('button');
     back.type = 'button'; back.className = 'choice-back'; back.textContent = '↩ Вернуться к выбору';
 
-    // ending background track: starts when its line scrolls into view, stops on "back"
-    let endEl = null, endObs = null, endOn = false;
+    // ending background track: fades in when its line scrolls into view, stops on
+    // "back". Routed through a GainNode because HTMLAudio .volume is ignored on iOS
+    // (there it follows the system volume) — the gain also performs the fade-in.
+    let endEl = null, endSrc = null, endGain = null, endObs = null, endOn = false;
+    const endVol = x.music && x.music.volume != null ? x.music.volume : 0.1;
+    const endFade = x.music && x.music.fade != null ? x.music.fade : 3;
+    const ensureEndGraph = () => {
+      if (endEl) return;
+      endEl = new Audio(encodeURI(x.music.src)); endEl.loop = !!(x.music && x.music.loop); endEl.preload = 'auto';
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) {
+          audioCtx = audioCtx || new AC();
+          endSrc = audioCtx.createMediaElementSource(endEl);
+          endGain = audioCtx.createGain(); endGain.gain.value = 0;
+          endSrc.connect(endGain).connect(audioCtx.destination);
+        }
+      } catch (e) {}
+    };
     const stopEndMusic = () => {
       if (endObs) { try { endObs.disconnect(); } catch (e) {} endObs = null; }
+      if (endGain && audioCtx) { try { const t = audioCtx.currentTime; endGain.gain.cancelScheduledValues(t); endGain.gain.setValueAtTime(0, t); } catch (e) {} }
       if (endEl) { try { endEl.pause(); endEl.currentTime = 0; } catch (e) {} }
       endOn = false;
     };
@@ -562,16 +580,26 @@ function injectInteractions(partId) {
       if (!x.music) return;
       const target = [...reader.querySelectorAll('p,li')].find(el => getComputedStyle(el).display !== 'none' && el.textContent.includes(x.music.contains));
       if (!target) return;
-      if (!endEl) { endEl = new Audio(encodeURI(x.music.src)); endEl.loop = !!x.music.loop; endEl.volume = x.music.volume != null ? x.music.volume : 0.3; endEl.preload = 'auto'; }
-      // iOS unlock: a muted play+pause inside this click gesture lets the observer play it later
+      ensureEndGraph();
+      // iOS unlock inside this click gesture: resume ctx + prime the element (silent — gain is 0)
+      try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
       try {
-        endEl.muted = true;
         const p = endEl.play();
-        if (p && p.then) p.then(() => { if (!endOn) { endEl.pause(); endEl.currentTime = 0; } endEl.muted = false; }).catch(() => { endEl.muted = false; });
-        else endEl.muted = false;
+        if (p && p.then) p.then(() => { if (!endOn) { endEl.pause(); endEl.currentTime = 0; } }).catch(() => {});
       } catch (e) {}
       endObs = new IntersectionObserver((ents) => {
-        ents.forEach(en => { if (en.isIntersecting && !endOn) { endOn = true; try { endEl.muted = false; endEl.currentTime = 0; const pp = endEl.play(); if (pp && pp.catch) pp.catch(() => {}); } catch (e) {} } });
+        ents.forEach(en => {
+          if (en.isIntersecting && !endOn) {
+            endOn = true;
+            try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
+            try {
+              endEl.currentTime = 0;
+              const pp = endEl.play(); if (pp && pp.catch) pp.catch(() => {});
+              if (endGain && audioCtx) { const t = audioCtx.currentTime; endGain.gain.cancelScheduledValues(t); endGain.gain.setValueAtTime(0.0001, t); endGain.gain.linearRampToValueAtTime(endVol, t + endFade); }
+              else { endEl.volume = endVol; } // fallback where Web Audio is unavailable
+            } catch (e) {}
+          }
+        });
       }, { root: document.getElementById('scroller'), threshold: 0.2 });
       endObs.observe(target);
       endMusicStop = stopEndMusic;
