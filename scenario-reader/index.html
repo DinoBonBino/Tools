@@ -128,6 +128,8 @@ body {
 
 /* inline illustration attached to a scenario line */
 #reader figure.fig { margin:1.4em auto; text-align:center; max-width:min(100%,300px); }
+#reader figure.fig.full { max-width:100%; }
+#reader figure.fig.full img { width:100%; }
 #reader figure.fig img { max-width:100%; height:auto; border:1px solid var(--border); border-radius:10px; background:var(--surface2); box-shadow:0 6px 22px rgba(0,0,0,.28); }
 #reader figure.fig figcaption { font-size:.8em; color:var(--muted); font-style:italic; margin-top:.55em; letter-spacing:.3px; }
 @media (min-width:820px) {
@@ -295,6 +297,7 @@ const TOKEN_KEY = 'toc_gh_token'; // shared with lore-editor on the same origin
 // wide screens; otherwise it's a centered block.
 const ILLUSTRATIONS = [
   { part:'part2', heading:'ПРОЛОГ', src:'img/sign.png' },
+  { part:'part2', contains:'удержать мир', src:'img/83AB9565-7388-49D0-BFF5-620E48853432.png', full:true },
 ];
 
 // Interactive choice points. The scenario line matched by `contains` is replaced
@@ -315,7 +318,7 @@ const INTERACTIONS = [
     ],
     // quiet background track that starts when this line scrolls into view (in the
     // РАЗДЕЛЕНИЕ ending) and stops on 'Вернуться к выбору'.
-    music:{ contains:'Ни грома, ни зарева', src:'img/powerless.mp3', volume:0.3, loop:true },
+    music:{ contains:'Ни грома, ни зарева', src:'img/powerless.mp3', volume:0.1, loop:true },
   },
 ];
 
@@ -504,7 +507,7 @@ function injectIllustrations(partId) {
     }
     if (!target) return;
     const fig = document.createElement('figure');
-    fig.className = 'fig' + (x.side ? ' side' : '');
+    fig.className = 'fig' + (x.side ? ' side' : '') + (x.full ? ' full' : '');
     const img = document.createElement('img');
     img.src = x.src; img.alt = x.caption || ''; img.loading = 'lazy';
     img.addEventListener('error', () => fig.remove());
