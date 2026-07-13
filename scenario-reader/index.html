@@ -637,13 +637,21 @@ function playDrum() {
 }
 
 // ── choice button sound (plays the uploaded file) ──
+// decodeAudioData in both promise and callback form (older Safari needs callbacks)
+function decodeAudio(ab) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const p = audioCtx.decodeAudioData(ab, b => { done = true; resolve(b); }, e => { done = true; reject(e); });
+    if (p && p.then) p.then(b => { if (!done) resolve(b); }, e => { if (!done) reject(e); });
+  });
+}
 function preloadChoiceSounds() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     audioCtx = audioCtx || new AC();
     CHOICE_SOUNDS.forEach((url, i) => {
       if (choiceBuffers[i]) return;
-      fetch(encodeURI(url)).then(r => r.arrayBuffer()).then(ab => audioCtx.decodeAudioData(ab)).then(buf => { choiceBuffers[i] = buf; }).catch(() => {});
+      fetch(encodeURI(url)).then(r => r.arrayBuffer()).then(decodeAudio).then(buf => { choiceBuffers[i] = buf; }).catch(() => {});
     });
   } catch (e) {}
 }
@@ -651,12 +659,15 @@ function playChoiceSound() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     audioCtx = audioCtx || new AC();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
     const idx = choiceSoundIdx % CHOICE_SOUNDS.length;
     choiceSoundIdx = (choiceSoundIdx + 1) % CHOICE_SOUNDS.length;
-    const play = (buf) => { const s = audioCtx.createBufferSource(); s.buffer = buf; s.connect(audioCtx.destination); s.start(); };
-    if (choiceBuffers[idx]) play(choiceBuffers[idx]);
-    else fetch(encodeURI(CHOICE_SOUNDS[idx])).then(r => r.arrayBuffer()).then(ab => audioCtx.decodeAudioData(ab)).then(buf => { choiceBuffers[idx] = buf; play(buf); }).catch(() => {});
+    const fire = (buf) => {
+      const go = () => { const s = audioCtx.createBufferSource(); s.buffer = buf; s.connect(audioCtx.destination); s.start(); };
+      if (audioCtx.state === 'suspended') audioCtx.resume().then(go).catch(go); // wait for resume, then play (Safari race)
+      else go();
+    };
+    if (choiceBuffers[idx]) fire(choiceBuffers[idx]);
+    else fetch(encodeURI(CHOICE_SOUNDS[idx])).then(r => r.arrayBuffer()).then(decodeAudio).then(buf => { choiceBuffers[idx] = buf; fire(buf); }).catch(() => {});
   } catch (e) {}
 }
 
