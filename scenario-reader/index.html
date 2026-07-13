@@ -101,7 +101,7 @@ body {
 /* reading area */
 #scroller { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
 #reader {
-  max-width:var(--read-w); margin:0 auto; padding:34px 22px 40vh;
+  max-width:var(--read-w); margin:0 auto; padding:34px 22px 8vh;
   background:var(--paper); color:var(--ink);
   font-family:var(--body-font); font-size:var(--read-fs); line-height:1.75;
 }
@@ -135,7 +135,10 @@ body {
 }
 
 /* interactive choice point */
-#reader .choice { position:relative; margin:2.2em auto; text-align:center; max-width:100%; min-height:calc(100dvh - 54px - env(safe-area-inset-top)); display:flex; flex-direction:column; justify-content:center; align-items:center; }
+#reader .choice { position:relative; margin:2.2em auto 0; text-align:center; max-width:100%; min-height:calc(100dvh - 54px - env(safe-area-inset-top)); display:flex; flex-direction:column; justify-content:center; align-items:center; }
+/* while the choice is unresolved it is the last thing on the page — kill the
+   reading tail so you can't scroll past the centered image into emptiness */
+#reader.no-tail { padding-bottom:0; }
 #reader .choice-img { max-width:100%; max-height:calc((100dvh - 54px - env(safe-area-inset-top)) * 0.72); height:auto; display:block; margin:0 auto; border:1px solid var(--border); border-radius:14px; background:var(--surface2); box-shadow:0 8px 30px rgba(0,0,0,.4); transition:opacity .2s; }
 #reader .choice-btns { position:absolute; left:0; right:0; bottom:6%; display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
 #reader .choice-btn {
@@ -401,6 +404,7 @@ function openPart(id, { restore }) {
   const part = PARTS.find(p => p.id===id);
   const reader = document.getElementById('reader');
   reader.innerHTML = renderScenario(part.md);
+  reader.classList.remove('no-tail');
   injectIllustrations(id);
   injectInteractions(id);
   buildToc();
@@ -533,6 +537,7 @@ function injectInteractions(partId) {
       setDisp(otherNodes, 'none');
       buttons.forEach(b => { b.disabled = true; b.classList.toggle('chosen', b.textContent === label); });
       branchNodes[branchNodes.length - 1].insertAdjacentElement('afterend', back);
+      reader.classList.remove('no-tail'); // revealed content needs the reading tail again
       playDrum();
     };
     x.choices.forEach(c => {
@@ -548,12 +553,14 @@ function injectInteractions(partId) {
       hideAll();
       buttons.forEach(b => { b.disabled = false; b.classList.remove('chosen'); });
       back.remove();
+      reader.classList.add('no-tail'); // back to the last-thing-on-page state
       box.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 
     box.appendChild(img); box.appendChild(row);
     choiceEl.replaceWith(box);
     hideAll(); // before a choice: no scenario below the widget
+    reader.classList.add('no-tail');
   });
 }
 
