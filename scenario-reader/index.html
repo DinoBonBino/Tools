@@ -359,6 +359,13 @@ const errEl  = document.getElementById('gate-err');
 const keyEl  = document.getElementById('key');
 const gateBtn= document.getElementById('gate-btn');
 
+function loadErrText(msg) {
+  if (msg === '403') return 'Слишком много запросов или нет доступа (403). Подождите минуту и нажмите «Открыть».';
+  if (msg === '404') return 'Репозиторий или файл не найден / нет доступа (404). Нажмите «Открыть», чтобы повторить.';
+  if (/^\d+$/.test(msg)) return 'Не удалось загрузить (ошибка ' + msg + '). Нажмите «Открыть», чтобы повторить.';
+  return 'Нет связи с GitHub. Проверьте интернет и нажмите «Открыть».';
+}
+
 document.getElementById('gate-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const key = keyEl.value.trim();
@@ -372,10 +379,8 @@ document.getElementById('gate-form').addEventListener('submit', async (e) => {
     await loadScenarios();
     enterApp();
   } catch (err) {
-    setToken('');
-    errEl.textContent = /^(401|403|404)$/.test(err.message)
-      ? 'Неверный или просроченный ключ доступа.'
-      : 'Не удалось загрузить сценарий (ошибка ' + err.message + ').';
+    if (err.message === '401') { setToken(''); errEl.textContent = 'Неверный или просроченный ключ доступа.'; }
+    else errEl.textContent = loadErrText(err.message); // keep the key on transient / rate-limit errors
     keyEl.select();
   } finally {
     gateBtn.disabled = false; gateBtn.textContent = 'Открыть';
@@ -859,9 +864,13 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 // ── init ──
 loadPrefs();
 (async function init() {
-  if (getToken()) {
+  const tok = getToken();
+  if (tok) {
     try { await loadScenarios(); enterApp(); return; }
-    catch { setToken(''); errEl.textContent = 'Ключ недействителен — введите заново.'; }
+    catch (err) {
+      if (err.message === '401') { setToken(''); errEl.textContent = 'Ключ недействителен — введите заново.'; }
+      else { keyEl.value = tok; errEl.textContent = loadErrText(err.message) + ' Ключ сохранён.'; } // don't drop a valid key on a transient error
+    }
   }
   keyEl.focus();
 })();
